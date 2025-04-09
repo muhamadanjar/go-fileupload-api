@@ -27,6 +27,8 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
+	db.AutoMigrate(&repository.UploadModel{}, &repository.FileModel{})
+
 	if err := os.MkdirAll(cfg.UploadTempDir, os.ModePerm); err != nil {
 		log.Fatalf("Failed to create temporary upload directory: %v", err)
 	}

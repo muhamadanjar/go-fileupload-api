@@ -1,0 +1,29 @@
+
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    environment:
+      - DB_CONNECTION=host=postgres user=postgres password=postgres dbname=fileuploader port=5432 sslmode=disable
+      - SERVER_PORT=8080
+      - UPLOAD_TEMP_DIR=/app/uploads/temp
+      - UPLOAD_FINAL_DIR=/app/uploads/files
+    volumes:
+      - ./uploads:/app/uploads
+
+  postgres:
+    image: postgres:14
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=fileuploader
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
