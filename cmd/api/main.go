@@ -6,6 +6,7 @@ import (
 	"fileupload/internal/delivery/http/route"
 	"fileupload/internal/repository"
 	"fileupload/internal/usecase"
+	"fileupload/pkg/logger"
 	"log"
 	"net/http"
 	"os"
@@ -22,18 +23,20 @@ func main() {
 	// Load configuration
 	cfg := config.LoadConfig()
 
+	logger.Log.Info("Aplikasi dimulai")
+
 	db, err := gorm.Open(postgres.Open(cfg.DBConnection), &gorm.Config{})
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		logger.Log.Fatal("Failed to connect to database: ", err)
 	}
 
 	db.AutoMigrate(&repository.UploadModel{}, &repository.FileModel{})
 
 	if err := os.MkdirAll(cfg.UploadTempDir, os.ModePerm); err != nil {
-		log.Fatalf("Failed to create temporary upload directory: %v", err)
+		logger.Log.Fatalf("Failed to create temporary upload directory: %v", err)
 	}
 	if err := os.MkdirAll(cfg.UploadFinalDir, os.ModePerm); err != nil {
-		log.Fatalf("Failed to create final upload directory: %v", err)
+		logger.Log.Fatalf("Failed to create final upload directory: %v", err)
 	}
 
 	// Initialize repositories
