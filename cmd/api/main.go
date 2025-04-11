@@ -7,6 +7,7 @@ import (
 	"fileupload/internal/repository"
 	"fileupload/internal/usecase"
 	"fileupload/pkg/logger"
+	"fileupload/pkg/minio"
 	"log"
 	"net/http"
 	"os"
@@ -24,6 +25,7 @@ func main() {
 	cfg := config.LoadConfig()
 
 	logger.Log.Info("Aplikasi dimulai")
+	minio.Init(cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey, cfg.MinioUseSSL)
 
 	db, err := gorm.Open(postgres.Open(cfg.DBConnection), &gorm.Config{})
 	if err != nil {

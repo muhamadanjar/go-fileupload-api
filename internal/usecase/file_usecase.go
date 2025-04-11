@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"errors"
 	"fileupload/config"
 	"fileupload/internal/domain/entity"
@@ -11,7 +12,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"fileupload/pkg/logger"
+	minioClient "fileupload/pkg/minio"
+
 	"github.com/google/uuid"
+	"github.com/minio/minio-go/v7"
 )
 
 type FileUseCase interface {
@@ -208,6 +213,38 @@ func (u *fileUseCase) FinalizeUpload(uploadID uuid.UUID) (*entity.File, error) {
 	err = u.fileRepo.CreateFile(file)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create file record: %w", err)
+	}
+	if u.config.EnabledMinio {
+		f, err := os.Open(finalPath)
+		if err != nil {
+			upload.Status = "failed"
+			u.fileRepo.UpdateUpload(upload)
+			return nil, fmt.Errorf("failed to open file for minio upload: %w", err)
+		}
+		defer f.Close()
+
+		fileStat, err := f.Stat()
+		if err != nil {
+			upload.Status = "failed"
+			u.fileRepo.UpdateUpload(upload)
+			return nil, fmt.Errorf("failed to stat file: %w", err)
+		}
+
+		_, err = minioClient.Client.PutObject(context.Background(), "uploads",
+			upload.FileName, f, fileStat.Size(), minio.PutObjectOptions{
+				ContentType: upload.MimeType,
+				UserMetadata: map[string]string{
+					"originalName": upload.OriginalName,
+					"uploadID":     upload.ID.String(),
+				},
+			})
+		if err != nil {
+			upload.Status = "failed"
+			u.fileRepo.UpdateUpload(upload)
+			logger.UploadLog.Errorf("failed to upload file to MinIO: %v", err)
+			return nil, fmt.Errorf("failed to upload file to MinIO: %w", err)
+		}
+
 	}
 
 	return file, nil
