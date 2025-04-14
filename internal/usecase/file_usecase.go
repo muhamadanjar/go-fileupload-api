@@ -8,6 +8,7 @@ import (
 	"fileupload/internal/repository"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"os"
 	"path/filepath"
 	"time"
@@ -24,6 +25,7 @@ type FileUseCase interface {
 	ProcessChunk(uploadID uuid.UUID, chunkReader io.Reader, contentRange string) (*entity.Upload, error)
 	FinalizeUpload(uploadID uuid.UUID) (*entity.File, error)
 	GetUploadStatus(uploadID uuid.UUID) (*entity.Upload, error)
+	DirectUpload(file multipart.File, fileHeader *multipart.FileHeader) (*entity.File, error)
 }
 
 type fileUseCase struct {
@@ -252,4 +254,54 @@ func (u *fileUseCase) FinalizeUpload(uploadID uuid.UUID) (*entity.File, error) {
 
 func (u *fileUseCase) GetUploadStatus(uploadID uuid.UUID) (*entity.Upload, error) {
 	return u.fileRepo.GetUploadByID(uploadID)
+}
+
+func (u *fileUseCase) DirectUpload(file multipart.File, fileHeader *multipart.FileHeader) (*entity.File, error) {
+	if fileHeader.Size > u.config.MaxFileSize {
+		return nil, errors.New("file size exceeds maximum allowed size")
+	}
+
+	// Generate a unique ID for the upload
+	uploadID := uuid.New()
+
+	ext := filepath.Ext(fileHeader.Filename)
+	fileName := uuid.New().String() + ext
+	finalDir := u.config.UploadFinalDir
+
+	if err := os.MkdirAll(finalDir, os.ModePerm); err != nil {
+		return nil, errors.New("failed to create directory")
+	}
+
+	finalPath := filepath.Join(finalDir, fileName)
+	out, err := os.Create(finalPath)
+	if err != nil {
+		return nil, errors.New("failed to create file")
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, file)
+	if err != nil {
+		return nil, errors.New("failed to write file")
+	}
+
+	now := time.Now()
+
+	fileEntity := &entity.File{
+		ID:           uuid.New(),
+		FileName:     fileName,
+		OriginalName: fileHeader.Filename,
+		Size:         fileHeader.Size,
+		MimeType:     fileHeader.Header.Get("Content-Type"),
+		Path:         finalPath,
+		UploadID:     uploadID, // We still create a reference to a "virtual" upload
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	err = u.fileRepo.CreateFile(fileEntity)
+	if err != nil {
+		return nil, errors.New("failed to create file record")
+	}
+
+	return fileEntity, nil
 }

@@ -203,3 +203,39 @@ func (h *FileHandler) GetUploadStatus(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response)
 }
+
+// UploadFile godoc
+// @Summary Upload a file (regular, non-chunked method)
+// @Description Upload a file using the standard multipart/form-data method
+// @Tags files
+// @Accept multipart/form-data
+// @Produce json
+// @Param file formData file true "File to upload"
+// @Success 200 {object} FileResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /files [post]
+func (h *FileHandler) UploadFile(c *gin.Context) {
+	// Get the file from form data
+	file, fileHeader, err := c.Request.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("failed to get file: %v", err)})
+		return
+	}
+	defer file.Close()
+
+	fileEntity, err := h.fileUseCase.DirectUpload(file, fileHeader)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to create file record: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"file_id":    fileEntity.ID,
+		"file_name":  fileEntity.OriginalName,
+		"size":       fileEntity.Size,
+		"mime_type":  fileEntity.MimeType,
+		"created_at": fileEntity.CreatedAt,
+	})
+}

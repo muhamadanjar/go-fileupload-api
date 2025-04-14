@@ -27,5 +27,7 @@ func SetupRoutes(r *gin.Engine, fileUseCase usecase.FileUseCase) {
 			uploads.POST("/:upload_id/chunks", fileHandler.UploadChunk)
 			uploads.POST("/:upload_id/finalize", fileHandler.FinalizeUpload)
 		}
+
+		api.POST("/files", fileHandler.UploadFile)
 	}
 }
